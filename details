@@ -1,0 +1,229 @@
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import openpyxl
+from openpyxl import Workbook
+import os
+import re
+
+# File to store the data
+FILE_NAME = "Student_Details.xlsx"
+
+# Global variable to store the generated PDF file path
+pdf_filename = ""
+
+# Function to generate a professional PDF receipt with token number
+def generate_pdf(name, roll_number, age, branch, phone, dob, email, address, token_number):
+    global pdf_filename
+    pdf_filename = f"Student_Receipt_{token_number}.pdf"
+    
+    c = canvas.Canvas(pdf_filename, pagesize=letter)
+    
+    # Header
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(180, 770, "Student Details Receipt")
+    
+    # Add Institution Name (Professional Design)
+    c.setFont("Helvetica", 12)
+    c.drawString(100, 750, "Fr. C. Rodrigues Institute of Technology")
+    c.drawString(100, 740, "Navi Mumbai, Maharashtra, India")
+    
+    # Text Art or Custom Banner
+    c.setFont("Courier", 10)
+    art = """
+    ******************************************
+    ***    Student Information Receipt    ***
+    ******************************************
+    """
+    c.drawString(100, 715, art.strip())  # Add text art
+    
+    # Add receipt details with proper alignment and professional look
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100, 690, f"Name: {name}")
+    c.drawString(100, 670, f"Roll Number: {roll_number}")
+    c.drawString(100, 650, f"Age: {age}")
+    c.drawString(100, 630, f"Branch: {branch}")
+    c.drawString(100, 610, f"Phone: {phone}")
+    c.drawString(100, 590, f"Date of Birth: {dob}")
+    c.drawString(100, 570, f"Email: {email}")
+    c.drawString(100, 550, f"Address: {address}")
+    c.drawString(100, 530, f"Token Number: {token_number}")
+    
+    # Footer with professionalism (e.g., contact information or website)
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(100, 100, "Contact us at: contact@fcrit.ac.in | www.fcrit.ac.in")
+    
+    # Save the PDF
+    c.save()
+
+    messagebox.showinfo("PDF Generated", f"PDF receipt has been saved as {pdf_filename}.")
+    return pdf_filename
+
+# Function to save student details to Excel and assign token number
+def save_to_excel(name, roll_number, age, branch, phone, dob, email, address):
+    if not os.path.exists(FILE_NAME):
+        # Create a new workbook and add a header row
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Details"
+        sheet.append(["Token Number", "Name", "Roll Number", "Age", "Branch", "Phone", "Date of Birth", "Email", "Address"])
+        workbook.save(FILE_NAME)
+
+    # Open the workbook
+    workbook = openpyxl.load_workbook(FILE_NAME)
+    sheet = workbook.active
+
+    # Assign a unique token number based on the number of rows
+    token_number = sheet.max_row  # Token number is the current row number
+
+    # Check for duplicate Roll Number
+    for row in sheet.iter_rows(min_row=2, values_only=True):
+        if row[2] == roll_number:
+            return False, token_number
+
+    # Append the data with token number
+    sheet.append([token_number, name, roll_number, age, branch, phone, dob, email, address])  # Add data row with token number
+    workbook.save(FILE_NAME)
+    return True, token_number
+
+# Function to collect and display student details
+def submit_details():
+    name = name_entry.get()
+    roll_number = roll_entry.get()
+    age = age_entry.get()
+    branch = branch_combobox.get()
+    phone = phone_entry.get()
+    dob = dob_entry.get()
+    email = email_entry.get()
+    address = address_entry.get()
+
+    if not (name and roll_number and age and branch and phone and dob and email and address) or branch == "Select Branch":
+        messagebox.showwarning("Input Error", "All fields are required!")
+        return
+
+    # Validate email using regex
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        messagebox.showwarning("Invalid Email", "Please enter a valid email address!")
+        return
+
+    # Validate phone number
+    if not re.match(r"^\d{10}$", phone):
+        messagebox.showwarning("Invalid Phone Number", "Phone number should be 10 digits!")
+        return
+
+    # Save details to Excel and check for duplicates
+    is_saved, token_number = save_to_excel(name, roll_number, age, branch, phone, dob, email, address)
+    if is_saved:
+        messagebox.showinfo("Success", "Your contact has been updated!")
+        
+        # Generate PDF receipt with token number
+        generate_pdf(name, roll_number, age, branch, phone, dob, email, address, token_number)
+
+        clear_fields()
+        ask_download(token_number)  # Ask if the user wants to download the PDF
+    else:
+        messagebox.showwarning("Duplicate Entry", "This record already exists!")
+
+# Function to clear input fields
+def clear_fields():
+    name_entry.delete(0, tk.END)
+    roll_entry.delete(0, tk.END)
+    age_entry.delete(0, tk.END)
+    phone_entry.delete(0, tk.END)
+    dob_entry.delete(0, tk.END)
+    email_entry.delete(0, tk.END)
+    address_entry.delete(0, tk.END)
+    branch_combobox.set("Select Branch")
+
+# Function to ask if the user wants to download the PDF
+def ask_download(token_number):
+    response = messagebox.askquestion("Download Receipt", f"Do you want to download the receipt for token {token_number}?")
+    if response == "yes":
+        download_receipt()
+
+# Function to download the PDF receipt
+def download_receipt():
+    if pdf_filename:
+        messagebox.showinfo("Download Receipt", f"Download your receipt from: {os.path.abspath(pdf_filename)}")
+
+# Function to handle pressing Enter to move to the next field
+def focus_next_field(event):
+    current_widget = event.widget
+    widget_list = [name_entry, roll_entry, age_entry, branch_combobox, phone_entry, dob_entry, email_entry, address_entry]
+    next_widget = widget_list[widget_list.index(current_widget) + 1] if widget_list.index(current_widget) + 1 < len(widget_list) else submit_button
+    next_widget.focus_set()
+
+# Create main window
+root = tk.Tk()
+root.title("Student Details Form")
+root.geometry("500x700")
+root.configure(bg="#f5f5f5")  # Set background color
+
+# Create a frame for the form elements
+form_frame = tk.Frame(root, bg="#f5f5f5")
+form_frame.pack(pady=20)
+
+# Add header label with enhanced styling
+header_label = tk.Label(form_frame, text="Student Details Form", font=("Poppins", 18, "bold"), bg="#f5f5f5", fg="black")
+header_label.grid(row=0, column=0, columnspan=2, pady=10)
+
+# Create labels and entry fields with enhanced styling
+tk.Label(form_frame, text="Name:", font=("Poppins", 12), bg="#f5f5f5").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+name_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+name_entry.grid(row=1, column=1, pady=5)
+name_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Roll Number:", font=("Poppins", 12), bg="#f5f5f5").grid(row=2, column=0, padx=10, pady=5, sticky="w")
+roll_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+roll_entry.grid(row=2, column=1, pady=5)
+roll_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Age:", font=("Poppins", 12), bg="#f5f5f5").grid(row=3, column=0, padx=10, pady=5, sticky="w")
+age_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+age_entry.grid(row=3, column=1, pady=5)
+age_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Phone:", font=("Poppins", 12), bg="#f5f5f5").grid(row=4, column=0, padx=10, pady=5, sticky="w")
+phone_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+phone_entry.grid(row=4, column=1, pady=5)
+phone_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Date of Birth:", font=("Poppins", 12), bg="#f5f5f5").grid(row=5, column=0, padx=10, pady=5, sticky="w")
+dob_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+dob_entry.grid(row=5, column=1, pady=5)
+dob_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Email:", font=("Poppins", 12), bg="#f5f5f5").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+email_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+email_entry.grid(row=6, column=1, pady=5)
+email_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Address:", font=("Poppins", 12), bg="#f5f5f5").grid(row=7, column=0, padx=10, pady=5, sticky="w")
+address_entry = tk.Entry(form_frame, font=("Poppins", 12), width=30, bd=2, relief="solid")
+address_entry.grid(row=7, column=1, pady=5)
+address_entry.bind("<Return>", focus_next_field)
+
+tk.Label(form_frame, text="Branch:", font=("Poppins", 12), bg="#f5f5f5").grid(row=8, column=0, padx=10, pady=5, sticky="w")
+branch_combobox = ttk.Combobox(form_frame, font=("Poppins", 12), width=28, state="readonly")
+branch_combobox['values'] = ("EXTC", "IT", "CS", "Mechanical", "Civil")
+branch_combobox.set("Select Branch")
+branch_combobox.grid(row=8, column=1, pady=5)
+branch_combobox.bind("<Return>", focus_next_field)
+
+# Buttons with hover animation and styling
+button_frame = tk.Frame(root, bg="#f5f5f5")
+button_frame.pack(pady=20)
+
+submit_button = tk.Button(button_frame, text="Submit", font=("Poppins", 14, "bold"), bg="#000000", fg="white", bd=2, relief="raised", width=15, command=submit_details)
+submit_button.grid(row=0, column=0, padx=10)
+submit_button.bind("<Enter>", lambda e: submit_button.config(bg="#333"))
+submit_button.bind("<Leave>", lambda e: submit_button.config(bg="#000000"))
+
+clear_button = tk.Button(button_frame, text="Clear", font=("Poppins", 14, "bold"), bg="#ff4d4d", fg="white", bd=2, relief="raised", width=15, command=clear_fields)
+clear_button.grid(row=0, column=1, padx=10)
+clear_button.bind("<Enter>", lambda e: clear_button.config(bg="#ff1a1a"))
+clear_button.bind("<Leave>", lambda e: clear_button.config(bg="#ff4d4d"))
+
+root.mainloop()
